@@ -1,9 +1,20 @@
 import React, { useState, useEffect } from "react";
-import { HeartIcon, ClockIcon, FilmIcon } from "@heroicons/react/24/solid";
+import {
+  HeartIcon,
+  ClockIcon,
+  FilmIcon,
+  StarIcon,
+} from "@heroicons/react/24/solid";
 import { db, auth } from "../firebase";
 import { doc, setDoc, deleteDoc, getDoc } from "firebase/firestore";
 
-const MovieCard = ({ movie, details, isLoading, isLikedList = false }) => {
+const MovieCard = ({
+  movie,
+  details,
+  isLoading,
+  isLikedList = false,
+  recommendReason,
+}) => {
   const [isLiked, setIsLiked] = useState(isLikedList);
 
   // Extract IMDb ID from the IMDb link
@@ -74,7 +85,7 @@ const MovieCard = ({ movie, details, isLoading, isLikedList = false }) => {
 
   return (
     <div className="bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl">
-      <div className="md:flex h-72">
+      <div className="md:flex h-auto">
         <div className="md:flex-shrink-0 relative w-full md:w-56">
           {isLoading ? (
             <div className="h-full w-full bg-gray-200 animate-pulse"></div>
@@ -127,12 +138,18 @@ const MovieCard = ({ movie, details, isLoading, isLikedList = false }) => {
               )}
             </div>
             {isLoading ? (
-              <div className="space-y-2">
-                <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-4 w-full bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-4 w-full bg-gray-200 rounded animate-pulse"></div>
-                <div className="h-4 w-2/3 bg-gray-200 rounded animate-pulse"></div>
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+                <div className="space-y-2">
+                  <div className="h-4 w-full bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-4 w-full bg-gray-200 rounded animate-pulse"></div>
+                  <div className="h-4 w-2/3 bg-gray-200 rounded animate-pulse"></div>
+                </div>
+                <div className="h-20 w-full bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-10 w-32 bg-gray-200 rounded animate-pulse"></div>
               </div>
             ) : (
               <>
@@ -158,6 +175,19 @@ const MovieCard = ({ movie, details, isLoading, isLikedList = false }) => {
               </>
             )}
           </div>
+          {!isLoading && recommendReason && (
+            <div className="mt-4 bg-yellow-50 border border-yellow-200 rounded-md p-3">
+              <p className="text-sm text-yellow-800 flex items-start">
+                <StarIcon className="h-5 w-5 mr-2 text-yellow-600 flex-shrink-0" />
+                <span>
+                  <strong className="font-semibold">
+                    Why we recommend this:{" "}
+                  </strong>
+                  {recommendReason}
+                </span>
+              </p>
+            </div>
+          )}
           {!isLoading && details && details.imdbLink && (
             <div className="mt-4">
               <a

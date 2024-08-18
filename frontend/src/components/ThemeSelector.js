@@ -2,12 +2,17 @@ import React from "react";
 
 function ThemeSelector({
   currentTheme,
-  setCurrentTheme,
+  updateUserTheme,
   isThemeDropdownOpen,
   setIsThemeDropdownOpen,
   themeDropdownRef,
   themeSwatches,
 }) {
+  const handleThemeChange = (theme) => {
+    updateUserTheme(theme);
+    setIsThemeDropdownOpen(false);
+  };
+
   return (
     <div className="absolute top-4 right-4" ref={themeDropdownRef}>
       <button
@@ -44,10 +49,7 @@ function ThemeSelector({
             {Object.entries(themeSwatches).map(([theme, colors]) => (
               <button
                 key={theme}
-                onClick={() => {
-                  setCurrentTheme(theme);
-                  setIsThemeDropdownOpen(false);
-                }}
+                onClick={() => handleThemeChange(theme)}
                 className="flex items-center w-full px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900"
                 role="menuitem"
               >

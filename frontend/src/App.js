@@ -3,12 +3,12 @@ import axios from "axios";
 import MovieList from "./components/MovieList";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "./firebase";
-import { collection, getDocs } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, getDoc } from "firebase/firestore";
 import LikedMoviesList from "./components/LikedMoviesList";
 import ThemeSelector from "./components/ThemeSelector";
 import UserAuth from "./components/UserAuth";
 import TabNavigation from "./components/TabNavigation";
-import LoginPrompt from "./components/LoginPrompt"; // New import
+import LoginPrompt from "./components/LoginPrompt";
 import {
   API_BASE_URL,
   themes,
@@ -53,16 +53,49 @@ function App() {
   }, []);
 
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       setUser(user);
       setAuthChecked(true);
-      if (!user) {
+      if (user) {
+        await fetchUserTheme(user.uid);
+      } else {
         setLikedMovies([]);
+        setCurrentTheme("default"); // Reset to default theme on logout
       }
     });
 
     return () => unsubscribe();
   }, []);
+
+  const fetchUserTheme = async (userId) => {
+    try {
+      const preferenceDocRef = doc(db, "users", userId, "preference", "theme");
+      const preferenceDoc = await getDoc(preferenceDocRef);
+      if (preferenceDoc.exists() && preferenceDoc.data().value) {
+        setCurrentTheme(preferenceDoc.data().value);
+      }
+    } catch (error) {
+      console.error("Error fetching user theme:", error);
+    }
+  };
+
+  const updateUserTheme = async (theme) => {
+    if (user) {
+      try {
+        const preferenceDocRef = doc(
+          db,
+          "users",
+          user.uid,
+          "preference",
+          "theme"
+        );
+        await setDoc(preferenceDocRef, { value: theme });
+      } catch (error) {
+        console.error("Error updating user theme:", error);
+      }
+    }
+    setCurrentTheme(theme);
+  };
 
   const getRecommendation = async () => {
     setButtonLoading(true);
@@ -185,7 +218,7 @@ function App() {
     >
       <ThemeSelector
         currentTheme={currentTheme}
-        setCurrentTheme={setCurrentTheme}
+        updateUserTheme={updateUserTheme}
         isThemeDropdownOpen={isThemeDropdownOpen}
         setIsThemeDropdownOpen={setIsThemeDropdownOpen}
         themeDropdownRef={themeDropdownRef}

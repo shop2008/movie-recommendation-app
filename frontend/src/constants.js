@@ -1,5 +1,6 @@
 export const API_BASE_URL =
-  process.env.REACT_APP_API_BASE_URL || "http://localhost:5001/api";
+  "https://us-central1-movierecommender-b4395.cloudfunctions.net/api";
+//   process.env.REACT_APP_API_BASE_URL || "http://localhost:5001/api";
 
 export const themes = {
   default: {
