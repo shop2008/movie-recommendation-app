@@ -28,3 +28,5 @@ yarn-error.log*
 /frontend/.env.development
 /frontend/.env.production
 .firebase
+/functions/movierecommender-b4395-firebase-adminsdk-quu0y-5ce74fcd69.json
+movierecommender-b4395-firebase-adminsdk-quu0y-5ce74fcd69.json

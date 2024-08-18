@@ -3,6 +3,13 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
+const admin = require("firebase-admin");
+
+// Initialize Firebase Admin SDK
+const serviceAccount = require("./movierecommender-b4395-firebase-adminsdk-quu0y-5ce74fcd69.json");
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
 
 const app = express();
 app.use(cors());
@@ -32,6 +39,7 @@ async function fetchMovieDetails(title) {
     );
     if (response.data.Response === "True") {
       return {
+        title: response.data.Title,
         image: response.data.Poster !== "N/A" ? response.data.Poster : null,
         imdbLink: `https://www.imdb.com/title/${response.data.imdbID}`,
         year: response.data.Year,
@@ -74,31 +82,60 @@ app.get("/movie-details", async (req, res) => {
 app.post("/generate-movie-recommendations", async (req, res) => {
   try {
     const {
+      userId,
       preference = [],
       languages = [],
       genres = [],
       maxResults = 5,
     } = req.body;
 
+    let likedMovies = [];
+
+    // Fetch user's liked movies from Firebase if userId is provided
+    if (userId) {
+      const userLikesRef = admin
+        .firestore()
+        .collection("users")
+        .doc(userId)
+        .collection("likes");
+      const likesSnapshot = await userLikesRef.get();
+
+      for (const doc of likesSnapshot.docs) {
+        const movieData = doc.data();
+        if (movieData.movieDetails.title) {
+          likedMovies.push(movieData.movieDetails.title);
+        }
+      }
+      console.log("likedMovies", likedMovies);
+    }
+
     // Filter out empty strings and join non-empty values
     const preferenceString = preference.filter(Boolean).join(", ");
     const languagesString = languages.filter(Boolean).join(", ");
     const genresString = genres.filter(Boolean).join(", ");
+    const likedMoviesString = likedMovies.join(", ");
 
-    let prompt = `Generate ${maxResults} movie recommendations`;
-
-    if (preferenceString || languagesString || genresString) {
-      prompt += " based on:";
-      if (preferenceString) prompt += `\n- Preferences: ${preferenceString}`;
-      if (languagesString) prompt += `\n- Languages: ${languagesString}`;
-      if (genresString) prompt += `\n- Genres: ${genresString}`;
-    }
+    let prompt = `Generate ${maxResults} unique movie recommendations based on the following criteria:`;
+    if (likedMoviesString)
+      prompt += `\n- User's liked movies (DO NOT recommend these): ${likedMoviesString}`;
+    if (preferenceString) prompt += `\n- Preferences: ${preferenceString}`;
+    if (languagesString) prompt += `\n- Languages: ${languagesString}`;
+    if (genresString) prompt += `\n- Genres: ${genresString}`;
 
     prompt += `\n
-For each movie, provide:
+Important guidelines:
+1. The list of liked movies contains titles. DO NOT recommend any of these movies.
+2. Use the liked movies as reference for the user's taste, but recommend new, different movies.
+3. Prioritize recommendations based on the user's preferences and the themes/styles of their liked movies.
+4. Ensure diversity in recommendations, avoiding multiple movies from the same franchise or director.
+5. Consider both classic and contemporary films that match the criteria.
+6. If language preferences are provided, prioritize movies in those languages but don't exclude excellent matches in other languages.
+
+For each recommended movie, provide:
 1. Title
 2. Year
 3. Brief description
+4. Reason for recommendation (based on user's liked movies, preferences, or input criteria)
 Format as JSON:
 {
   "recommendations": [
@@ -106,6 +143,7 @@ Format as JSON:
       "title": "Movie Title",
       "year": 2023,
       "description": "Brief description.",
+      "reason": "Recommended because it's similar to [liked movie or preference] in terms of [aspect]."
     }
   ]
 }`;

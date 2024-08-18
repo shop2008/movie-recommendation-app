@@ -3,8 +3,8 @@ import { HeartIcon, ClockIcon, FilmIcon } from "@heroicons/react/24/solid";
 import { db, auth } from "../firebase";
 import { doc, setDoc, deleteDoc, getDoc } from "firebase/firestore";
 
-const MovieCard = ({ movie, details, isLoading }) => {
-  const [isLiked, setIsLiked] = useState(false);
+const MovieCard = ({ movie, details, isLoading, isLikedList = false }) => {
+  const [isLiked, setIsLiked] = useState(isLikedList);
 
   // Extract IMDb ID from the IMDb link
   const getImdbId = (imdbLink) => {
@@ -16,23 +16,25 @@ const MovieCard = ({ movie, details, isLoading }) => {
   const imdbId = details ? getImdbId(details.imdbLink) : null;
 
   useEffect(() => {
-    const checkLikedStatus = async () => {
-      if (auth.currentUser && imdbId) {
-        const likeDoc = doc(
-          db,
-          "movies",
-          imdbId,
-          "likes",
-          auth.currentUser.uid
-        );
-        const docSnap = await getDoc(likeDoc);
-        setIsLiked(docSnap.exists());
+    if (!isLikedList) {
+      const checkLikedStatus = async () => {
+        if (auth.currentUser && imdbId) {
+          const likeDoc = doc(
+            db,
+            "users",
+            auth.currentUser.uid,
+            "likes",
+            imdbId
+          );
+          const docSnap = await getDoc(likeDoc);
+          setIsLiked(docSnap.exists());
+        }
+      };
+      if (imdbId) {
+        checkLikedStatus();
       }
-    };
-    if (imdbId) {
-      checkLikedStatus();
     }
-  }, [imdbId]);
+  }, [imdbId, isLikedList]);
 
   const handleLike = async () => {
     if (!auth.currentUser) {
@@ -45,14 +47,15 @@ const MovieCard = ({ movie, details, isLoading }) => {
       return;
     }
 
-    const likeRef = doc(db, "movies", imdbId, "likes", auth.currentUser.uid);
+    const likeRef = doc(db, "users", auth.currentUser.uid, "likes", imdbId);
 
     try {
       if (isLiked) {
         await deleteDoc(likeRef);
       } else {
         await setDoc(likeRef, {
-          userId: auth.currentUser.uid,
+          ...(details &&
+            Object.keys(details).length > 0 && { movieDetails: details }),
           timestamp: new Date(),
         });
       }
@@ -64,8 +67,8 @@ const MovieCard = ({ movie, details, isLoading }) => {
     }
   };
 
-  if (!movie) {
-    console.error("Movie is undefined");
+  if (!movie && !details) {
+    console.error("Movie or details is undefined");
     return null; // or return a placeholder component
   }
 
@@ -73,18 +76,16 @@ const MovieCard = ({ movie, details, isLoading }) => {
     <div className="bg-white rounded-lg shadow-md overflow-hidden transition-all duration-300 hover:shadow-xl">
       <div className="md:flex h-72">
         <div className="md:flex-shrink-0 relative w-full md:w-56">
-          {details && details.image ? (
+          {isLoading ? (
+            <div className="h-full w-full bg-gray-200 animate-pulse"></div>
+          ) : (
             <img
               src={details.image}
-              alt={movie.title}
+              alt={movie.title || details.title}
               className="h-full w-full object-cover transition-transform duration-300 hover:scale-105"
             />
-          ) : (
-            <div className="h-full w-full bg-gray-200 flex items-center justify-center">
-              <span className="text-gray-500">No image available</span>
-            </div>
           )}
-          {details && details.rating && (
+          {!isLoading && details && details.rating && (
             <div className="absolute top-2 right-2 bg-yellow-500 text-white px-2 py-1 rounded-full text-sm font-bold">
               ★ {details.rating}
             </div>
@@ -94,16 +95,20 @@ const MovieCard = ({ movie, details, isLoading }) => {
           <div>
             <div className="flex items-center justify-between mb-2">
               <div className="flex items-baseline">
-                <h3 className="text-2xl font-extrabold text-gray-900 hover:text-pink-600 transition-colors duration-200">
-                  {movie.title}
-                </h3>
-                {details && details.year && (
+                {isLoading ? (
+                  <div className="h-8 w-48 bg-gray-200 rounded animate-pulse"></div>
+                ) : (
+                  <h3 className="text-2xl font-extrabold text-gray-900 hover:text-pink-600 transition-colors duration-200">
+                    {movie.title || details.title}
+                  </h3>
+                )}
+                {!isLoading && details && details.year && (
                   <span className="ml-2 text-lg font-medium text-gray-500">
                     ({details.year})
                   </span>
                 )}
               </div>
-              {imdbId && (
+              {!isLoading && imdbId && (
                 <button
                   onClick={handleLike}
                   className={`p-2 rounded-full ${
@@ -122,7 +127,13 @@ const MovieCard = ({ movie, details, isLoading }) => {
               )}
             </div>
             {isLoading ? (
-              <p className="text-sm text-gray-500">Loading details...</p>
+              <div className="space-y-2">
+                <div className="h-4 w-32 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-4 w-24 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-4 w-full bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-4 w-full bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-4 w-2/3 bg-gray-200 rounded animate-pulse"></div>
+              </div>
             ) : (
               <>
                 <div className="space-y-1 mb-3">
@@ -147,7 +158,7 @@ const MovieCard = ({ movie, details, isLoading }) => {
               </>
             )}
           </div>
-          {details && details.imdbLink && (
+          {!isLoading && details && details.imdbLink && (
             <div className="mt-4">
               <a
                 href={details.imdbLink}
