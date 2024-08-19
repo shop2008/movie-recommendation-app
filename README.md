@@ -2,6 +2,9 @@
 
 Welcome to the Movie Recommendation App! This project provides personalized movie suggestions using React for the front-end, Firebase Functions for the back-end, and the Gemini API for generating content.
 
+![screencapture-movierecommender-b4395-web-app-2024-08-18-21_48_06](https://github.com/user-attachments/assets/f8a037c6-4605-4e8e-9d22-d1ec7f0084d9)
+
+
 ## Features
 
 - **Personalized Recommendations**: Get movie suggestions based on your preferences.
