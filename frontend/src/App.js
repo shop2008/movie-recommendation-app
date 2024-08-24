@@ -131,14 +131,24 @@ function App() {
         `${API_BASE_URL}/movie-details?title=${encodeURIComponent(title)}`
       );
       if (response.data && Object.keys(response.data).length > 0) {
-        setMovieDetails((prev) => ({ ...prev, [title]: response.data }));
+        // The response now contains the movie details directly
+        const movieDetail = response.data[title];
+        if (movieDetail) {
+          setMovieDetails((prev) => ({ ...prev, [title]: movieDetail }));
+        } else {
+          console.log(
+            `No details found for ${title}. Removing from recommendations.`
+          );
+          setRecommendations((prev) =>
+            prev.filter((movie) => movie.title !== title)
+          );
+        }
       } else {
-        // Remove the movie from recommendations if no details are returned
-        setRecommendations((prev) =>
-          prev.filter((movie) => movie.title !== title)
-        );
         console.log(
           `No details found for ${title}. Removing from recommendations.`
+        );
+        setRecommendations((prev) =>
+          prev.filter((movie) => movie.title !== title)
         );
       }
     } catch (error) {

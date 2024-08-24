@@ -4,6 +4,7 @@ const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
 const admin = require("firebase-admin");
+const redis = require("redis");
 
 // Initialize Firebase Admin SDK
 const serviceAccount = require("./movierecommender-b4395-firebase-adminsdk-quu0y-5ce74fcd69.json");
@@ -29,34 +30,62 @@ const model = genAI.getGenerativeModel({
   },
 });
 
+const redisClient = redis.createClient({
+  password: process.env.REDIS_PASSWORD,
+  socket: {
+    host: process.env.REDIS_HOST,
+    port: process.env.REDIS_PORT,
+  },
+});
+
+// Add this near the top of the file, after creating the Redis client
+redisClient.on("error", (err) => console.log("Redis Client Error", err));
+redisClient.connect();
+
 // Function to fetch movie details from OMDB API
-async function fetchMovieDetails(title) {
-  try {
-    const response = await axios.get(
-      `https://www.omdbapi.com/?t=${encodeURIComponent(
-        title
-      )}&apikey=${OMDB_API_KEY}`
-    );
-    if (response.data.Response === "True") {
-      return {
-        title: response.data.Title,
-        image: response.data.Poster !== "N/A" ? response.data.Poster : null,
-        imdbLink: `https://www.imdb.com/title/${response.data.imdbID}`,
-        year: response.data.Year,
-        rating: response.data.imdbRating,
-        runtime: response.data.Runtime,
-        director: response.data.Director,
-        description: response.data.Plot,
-      };
+async function fetchMovieDetails(titles) {
+  const movieDetails = {};
+  const titlesArray = Array.isArray(titles) ? titles : [titles];
+
+  const fetchPromises = titlesArray.map(async (title) => {
+    const cacheKey = `movie:${title}`;
+    const cachedData = await redisClient.get(cacheKey);
+
+    if (cachedData) {
+      movieDetails[title] = JSON.parse(cachedData);
+      return;
     }
-    return null;
-  } catch (error) {
-    console.error(`Error fetching details for ${title}:`, error);
-    return null;
-  }
+
+    try {
+      const response = await axios.get(
+        `https://www.omdbapi.com/?t=${encodeURIComponent(
+          title
+        )}&apikey=${OMDB_API_KEY}`
+      );
+      if (response.data.Response === "True") {
+        const details = {
+          title: response.data.Title,
+          image: response.data.Poster !== "N/A" ? response.data.Poster : null,
+          imdbLink: `https://www.imdb.com/title/${response.data.imdbID}`,
+          year: response.data.Year,
+          rating: response.data.imdbRating,
+          runtime: response.data.Runtime,
+          director: response.data.Director,
+          description: response.data.Plot,
+        };
+        await redisClient.set(cacheKey, JSON.stringify(details), "EX", 86400);
+        movieDetails[title] = details;
+      }
+    } catch (error) {
+      console.error(`Error fetching details for ${title}:`, error);
+    }
+  });
+
+  await Promise.all(fetchPromises);
+  return movieDetails;
 }
 
-// New API endpoint to fetch movie details
+// API endpoint to fetch movie details
 app.get("/movie-details", async (req, res) => {
   try {
     const { title } = req.query;
@@ -65,7 +94,7 @@ app.get("/movie-details", async (req, res) => {
     }
 
     const details = await fetchMovieDetails(title);
-    if (details) {
+    if (Object.keys(details).length > 0) {
       res.json(details);
     } else {
       res.status(404).json({ error: "Movie details not found" });
@@ -78,7 +107,6 @@ app.get("/movie-details", async (req, res) => {
   }
 });
 
-// API endpoint to get movie recommendations
 app.post("/generate-movie-recommendations", async (req, res) => {
   try {
     const {
@@ -116,26 +144,37 @@ app.post("/generate-movie-recommendations", async (req, res) => {
     const likedMoviesString = likedMovies.join(", ");
 
     let prompt = `Generate ${maxResults} unique movie recommendations based on the following criteria:`;
-    if (likedMoviesString)
+    if (likedMoviesString) {
       prompt += `\n- User's liked movies (DO NOT recommend these): ${likedMoviesString}`;
+      prompt += `\n- Use these liked movies as reference for the user's taste, but recommend new, different movies.`;
+    } else {
+      prompt += `\n- User has no liked movies record. Focus on the provided preferences, languages, and genres.`;
+    }
     if (preferenceString) prompt += `\n- Preferences: ${preferenceString}`;
     if (languagesString) prompt += `\n- Languages: ${languagesString}`;
     if (genresString) prompt += `\n- Genres: ${genresString}`;
 
     prompt += `\n
 Important guidelines:
-1. The list of liked movies contains titles. DO NOT recommend any of these movies.
-2. Use the liked movies as reference for the user's taste, but recommend new, different movies.
-3. Prioritize recommendations based on the user's preferences and the themes/styles of their liked movies.
-4. Ensure diversity in recommendations, avoiding multiple movies from the same franchise or director.
-5. Consider both classic and contemporary films that match the criteria.
-6. If language preferences are provided, prioritize movies in those languages but don't exclude excellent matches in other languages.
+1. ${
+      likedMoviesString
+        ? "DO NOT recommend any of the liked movies listed above."
+        : "Provide diverse recommendations based on the given criteria."
+    }
+2. Prioritize recommendations based on the user's preferences${
+      likedMoviesString ? " and the themes/styles of their liked movies" : ""
+    }.
+3. Ensure diversity in recommendations, avoiding multiple movies from the same franchise or director.
+4. Consider both classic and contemporary films that match the criteria.
+5. If language preferences are provided, prioritize movies in those languages but don't exclude excellent matches in other languages.
 
 For each recommended movie, provide:
 1. Title
 2. Year
 3. Brief description
-4. Reason for recommendation (based on user's liked movies, preferences, or input criteria)
+4. Reason for recommendation (based on ${
+      likedMoviesString ? "user's liked movies, " : ""
+    }preferences, or input criteria)
 Format as JSON:
 {
   "recommendations": [
@@ -143,13 +182,12 @@ Format as JSON:
       "title": "Movie Title",
       "year": 2023,
       "description": "Brief description.",
-      "reason": "Recommended because it's similar to [liked movie or preference] in terms of [aspect]."
+      "reason": "Recommended because it matches [preference or criteria] in terms of [aspect]."
     }
   ]
 }`;
 
     console.log("Sending prompt to Gemini API:", prompt);
-
     const result = await model.generateContent(prompt);
     const response = await result.response;
     const jsonResponse = response.text();
@@ -158,20 +196,11 @@ Format as JSON:
     // Parse the JSON response
     const recommendations = JSON.parse(jsonResponse);
 
-    // Fetch movie details for each recommendation
-    const movieDetails = {};
-    for (const movie of recommendations.recommendations) {
-      const details = await fetchMovieDetails(movie.title);
-      if (details) {
-        movieDetails[movie.title] = details;
-      }
-    }
-
-    // Send both recommendations and movie details
-    return res.json({
+    const responseData = {
       recommendations: recommendations.recommendations,
-      movieDetails: movieDetails,
-    });
+    };
+
+    return res.json(responseData);
   } catch (error) {
     console.error("Error calling Gemini API:", error);
 
@@ -181,6 +210,18 @@ Format as JSON:
         .status(500)
         .json({ error: "An error occurred while generating recommendations." });
     }
+  }
+});
+
+// Add this new endpoint after your existing endpoints
+app.get("/redis-test", async (req, res) => {
+  try {
+    await redisClient.set("test", "Redis is working!");
+    const value = await redisClient.get("test");
+    res.json({ message: value });
+  } catch (error) {
+    console.error("Redis test failed:", error);
+    res.status(500).json({ error: "Redis test failed" });
   }
 });
 

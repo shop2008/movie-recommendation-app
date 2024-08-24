@@ -10,6 +10,7 @@ const MovieList = ({ recommendations, movieDetails, isLoadingDetails }) => {
             movie={rec}
             details={movieDetails[rec.title] || {}}
             isLoading={isLoadingDetails[rec.title]}
+            recommendReason={rec.reason}
           />
         </li>
       ))}
