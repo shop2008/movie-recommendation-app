@@ -1,5 +1,11 @@
 import React, { useState, useRef, useEffect } from "react";
 import axios from "axios";
+import {
+  BrowserRouter as Router,
+  Route,
+  Routes,
+  useLocation,
+} from "react-router-dom";
 import MovieList from "./components/MovieList";
 import { onAuthStateChanged, signOut } from "firebase/auth";
 import { auth, db } from "./firebase";
@@ -9,6 +15,7 @@ import ThemeSelector from "./components/ThemeSelector";
 import UserAuth from "./components/UserAuth";
 import TabNavigation from "./components/TabNavigation";
 import LoginPrompt from "./components/LoginPrompt";
+import LandingPage from "./components/LandingPage";
 import {
   API_BASE_URL,
   themes,
@@ -17,8 +24,12 @@ import {
   resultOptions,
   themeSwatches,
 } from "./constants";
+import { LazyMotion, domAnimation } from "framer-motion";
 
-function App() {
+function AppContent() {
+  const location = useLocation();
+  const isLandingPage = location.pathname === "/";
+
   const [preference, setPreference] = useState("");
   const [recommendations, setRecommendations] = useState([]);
   const [movieDetails, setMovieDetails] = useState({});
@@ -220,213 +231,236 @@ function App() {
     }
   };
 
-  return (
-    <div
-      className={`${getThemeClass(
-        "background"
-      )} min-h-screen py-12 px-4 sm:px-6 lg:px-8 relative`}
-    >
-      <ThemeSelector
-        currentTheme={currentTheme}
-        updateUserTheme={updateUserTheme}
-        isThemeDropdownOpen={isThemeDropdownOpen}
-        setIsThemeDropdownOpen={setIsThemeDropdownOpen}
-        themeDropdownRef={themeDropdownRef}
-        themeSwatches={themeSwatches}
-      />
+  const RecommendationsContent = () => (
+    <div className="max-w-3xl mx-auto mt-16">
+      <div className="bg-white rounded-xl shadow-2xl overflow-hidden">
+        <TabNavigation
+          activeTab={activeTab}
+          setActiveTab={handleTabChange}
+          user={user}
+          getThemeClass={getThemeClass}
+        />
 
-      <UserAuth
-        user={user}
-        authChecked={authChecked}
-        showAuth={showAuth}
-        setShowAuth={setShowAuth}
-        handleLogin={handleLogin}
-        handleLogout={handleLogout}
-        getThemeClass={getThemeClass}
-      />
+        <div className="px-6 py-8 sm:p-10">
+          {activeTab === "recommendations" && (
+            <>
+              <h1
+                className={`text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r ${getThemeClass(
+                  "primary"
+                )} mb-8 text-center`}
+              >
+                Movie Maestro
+              </h1>
 
-      <div className="max-w-3xl mx-auto mt-16">
-        <div className="bg-white rounded-xl shadow-2xl overflow-hidden">
-          <TabNavigation
-            activeTab={activeTab}
-            setActiveTab={handleTabChange}
-            user={user}
-            getThemeClass={getThemeClass}
-          />
-
-          <div className="px-6 py-8 sm:p-10">
-            {activeTab === "recommendations" && (
-              <>
-                <h1
-                  className={`text-4xl font-extrabold text-transparent bg-clip-text bg-gradient-to-r ${getThemeClass(
-                    "primary"
-                  )} mb-8 text-center`}
-                >
-                  Movie Maestro
-                </h1>
-
-                <div className="space-y-6">
-                  <div>
-                    <label
-                      htmlFor="preference"
-                      className="block text-sm font-medium text-gray-700 mb-1"
-                    >
-                      Movie preference
-                    </label>
-                    <input
-                      id="preference"
-                      type="text"
-                      placeholder="Enter your movie preference"
-                      className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition duration-200"
-                      value={preference}
-                      onChange={(e) => setPreference(e.target.value)}
-                    />
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select Languages
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {availableLanguages.map((language) => (
-                        <button
-                          key={language}
-                          onClick={() => handleLanguageChange(language)}
-                          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors duration-200 ${
-                            languages.includes(language)
-                              ? `${getThemeClass("secondary")} text-white`
-                              : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                          }`}
-                        >
-                          {language}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Select Genres
-                    </label>
-                    <div className="flex flex-wrap gap-2">
-                      {availableGenres.map((genre) => (
-                        <button
-                          key={genre}
-                          onClick={() => handleGenreChange(genre)}
-                          className={`px-3 py-1 rounded-full text-sm font-medium transition-colors duration-200 ${
-                            genres.includes(genre)
-                              ? `${getThemeClass("tertiary")} text-white`
-                              : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                          }`}
-                        >
-                          {genre}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
-                      Number of Results
-                    </label>
-                    <div className="flex gap-2">
-                      {resultOptions.map((option) => (
-                        <button
-                          key={option}
-                          onClick={() => setMaxResults(option)}
-                          className={`px-4 py-2 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-colors duration-200 ${
-                            maxResults === option
-                              ? `${getThemeClass("secondary")} text-white`
-                              : "bg-gray-200 text-gray-700 hover:bg-gray-300"
-                          }`}
-                        >
-                          {option}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={getRecommendation}
-                    disabled={buttonLoading}
-                    className={`w-full bg-gradient-to-r ${getThemeClass(
-                      "primary"
-                    )} text-white py-3 rounded-lg font-semibold shadow-md hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition duration-200`}
+              <div className="space-y-6">
+                <div>
+                  <label
+                    htmlFor="preference"
+                    className="block text-sm font-medium text-gray-700 mb-1"
                   >
-                    {buttonLoading ? (
-                      <div className="flex items-center justify-center">
-                        <svg
-                          className="animate-spin h-5 w-5 mr-3"
-                          xmlns="http://www.w3.org/2000/svg"
-                          fill="none"
-                          viewBox="0 0 24 24"
-                        >
-                          <circle
-                            className="opacity-25"
-                            cx="12"
-                            cy="12"
-                            r="10"
-                            stroke="currentColor"
-                            strokeWidth="4"
-                          ></circle>
-                          <path
-                            className="opacity-75"
-                            fill="currentColor"
-                            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                          ></path>
-                        </svg>
-                        Getting Recommendations...
-                      </div>
-                    ) : (
-                      "Get Recommendations"
-                    )}
-                  </button>
+                    Movie preference
+                  </label>
+                  <input
+                    id="preference"
+                    type="text"
+                    placeholder="Enter your movie preference"
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition duration-200"
+                    value={preference}
+                    onChange={(e) => setPreference(e.target.value)}
+                  />
                 </div>
-              </>
-            )}
 
-            {activeTab === "liked" && (
-              <>
-                <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                  Your Liked Movies
-                </h2>
-                {user ? (
-                  isLoadingLikedMovies ? (
-                    <div className="flex justify-center items-center">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500"></div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Languages
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {availableLanguages.map((language) => (
+                      <button
+                        key={language}
+                        onClick={() => handleLanguageChange(language)}
+                        className={`px-3 py-1 rounded-full text-sm font-medium transition-colors duration-200 ${
+                          languages.includes(language)
+                            ? `${getThemeClass("secondary")} text-white`
+                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        }`}
+                      >
+                        {language}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Genres
+                  </label>
+                  <div className="flex flex-wrap gap-2">
+                    {availableGenres.map((genre) => (
+                      <button
+                        key={genre}
+                        onClick={() => handleGenreChange(genre)}
+                        className={`px-3 py-1 rounded-full text-sm font-medium transition-colors duration-200 ${
+                          genres.includes(genre)
+                            ? `${getThemeClass("tertiary")} text-white`
+                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        }`}
+                      >
+                        {genre}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Number of Results
+                  </label>
+                  <div className="flex gap-2">
+                    {resultOptions.map((option) => (
+                      <button
+                        key={option}
+                        onClick={() => setMaxResults(option)}
+                        className={`px-4 py-2 rounded-lg text-sm font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition-colors duration-200 ${
+                          maxResults === option
+                            ? `${getThemeClass("secondary")} text-white`
+                            : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        }`}
+                      >
+                        {option}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <button
+                  onClick={getRecommendation}
+                  disabled={buttonLoading}
+                  className={`w-full bg-gradient-to-r ${getThemeClass(
+                    "primary"
+                  )} text-white py-3 rounded-lg font-semibold shadow-md hover:opacity-90 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-pink-500 transition duration-200`}
+                >
+                  {buttonLoading ? (
+                    <div className="flex items-center justify-center">
+                      <svg
+                        className="animate-spin h-5 w-5 mr-3"
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                      >
+                        <circle
+                          className="opacity-25"
+                          cx="12"
+                          cy="12"
+                          r="10"
+                          stroke="currentColor"
+                          strokeWidth="4"
+                        ></circle>
+                        <path
+                          className="opacity-75"
+                          fill="currentColor"
+                          d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                        ></path>
+                      </svg>
+                      Getting Recommendations...
                     </div>
                   ) : (
-                    <LikedMoviesList
-                      likedMovies={likedMovies}
-                      getThemeClass={getThemeClass}
-                    />
-                  )
+                    "Get Recommendations"
+                  )}
+                </button>
+              </div>
+            </>
+          )}
+
+          {activeTab === "liked" && (
+            <>
+              <h2 className="text-2xl font-bold text-gray-900 mb-6">
+                Your Liked Movies
+              </h2>
+              {user ? (
+                isLoadingLikedMovies ? (
+                  <div className="flex justify-center items-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500"></div>
+                  </div>
                 ) : (
-                  <LoginPrompt
-                    setShowAuth={setShowAuth}
+                  <LikedMoviesList
+                    likedMovies={likedMovies}
                     getThemeClass={getThemeClass}
                   />
-                )}
-              </>
-            )}
-          </div>
-
-          {recommendations.length > 0 && activeTab === "recommendations" && (
-            <div className="bg-gray-50 px-6 py-8 sm:p-10">
-              <h2 className="text-2xl font-bold text-gray-900 mb-6">
-                Your Recommendations
-              </h2>
-              <MovieList
-                recommendations={recommendations}
-                movieDetails={movieDetails}
-                isLoadingDetails={isLoadingDetails}
-                fetchMovieDetails={fetchMovieDetails}
-              />
-            </div>
+                )
+              ) : (
+                <LoginPrompt
+                  setShowAuth={setShowAuth}
+                  getThemeClass={getThemeClass}
+                />
+              )}
+            </>
           )}
         </div>
+
+        {recommendations.length > 0 && activeTab === "recommendations" && (
+          <div className="bg-gray-50 px-6 py-8 sm:p-10">
+            <h2 className="text-2xl font-bold text-gray-900 mb-6">
+              Your Recommendations
+            </h2>
+            <MovieList
+              recommendations={recommendations}
+              movieDetails={movieDetails}
+              isLoadingDetails={isLoadingDetails}
+              fetchMovieDetails={fetchMovieDetails}
+            />
+          </div>
+        )}
       </div>
     </div>
+  );
+
+  return (
+    <div
+      className={`${
+        isLandingPage ? "" : getThemeClass("background")
+      } min-h-screen ${
+        isLandingPage ? "" : "py-12 px-4 sm:px-6 lg:px-8"
+      } relative`}
+    >
+      {!isLandingPage && (
+        <>
+          <ThemeSelector
+            currentTheme={currentTheme}
+            updateUserTheme={updateUserTheme}
+            isThemeDropdownOpen={isThemeDropdownOpen}
+            setIsThemeDropdownOpen={setIsThemeDropdownOpen}
+            themeDropdownRef={themeDropdownRef}
+            themeSwatches={themeSwatches}
+          />
+
+          <UserAuth
+            user={user}
+            authChecked={authChecked}
+            showAuth={showAuth}
+            setShowAuth={setShowAuth}
+            handleLogin={handleLogin}
+            handleLogout={handleLogout}
+            getThemeClass={getThemeClass}
+          />
+        </>
+      )}
+
+      <Routes>
+        <Route path="/" element={<LandingPage />} />
+        <Route path="/recommendations" element={<RecommendationsContent />} />
+      </Routes>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <LazyMotion features={domAnimation}>
+        <AppContent />
+      </LazyMotion>
+    </Router>
   );
 }
 
