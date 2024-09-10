@@ -31,6 +31,7 @@ function AppContent() {
   const isLandingPage = location.pathname === "/";
 
   const [preference, setPreference] = useState("");
+  const preferenceInputRef = useRef(null);
   const [recommendations, setRecommendations] = useState([]);
   const [movieDetails, setMovieDetails] = useState({});
   const [languages, setLanguages] = useState(["English"]);
@@ -261,12 +262,15 @@ function AppContent() {
                     Movie preference
                   </label>
                   <input
+                    ref={preferenceInputRef}
                     id="preference"
                     type="text"
                     placeholder="Enter your movie preference"
-                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-pink-500 focus:border-transparent transition duration-200"
-                    value={preference}
-                    onChange={(e) => setPreference(e.target.value)}
+                    className="w-full px-4 py-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-1 focus:ring-pink-500 focus:border-pink-500 transition duration-200"
+                    defaultValue={preference}
+                    onBlur={() =>
+                      setPreference(preferenceInputRef.current.value)
+                    }
                   />
                 </div>
 
