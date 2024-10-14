@@ -3,7 +3,6 @@ const express = require("express");
 const cors = require("cors");
 const axios = require("axios");
 const admin = require("firebase-admin");
-const redis = require("redis");
 
 // Initialize Firebase Admin SDK
 const serviceAccount = require("../movierecommender-b4395-firebase-adminsdk-quu0y-5ce74fcd69.json");
@@ -29,32 +28,12 @@ const model = genAI.getGenerativeModel({
   },
 });
 
-const redisClient = redis.createClient({
-  password: process.env.REDIS_PASSWORD,
-  socket: {
-    host: process.env.REDIS_HOST,
-    port: process.env.REDIS_PORT,
-  },
-});
-
-// Add this near the top of the file, after creating the Redis client
-redisClient.on("error", (err) => console.log("Redis Client Error", err));
-redisClient.connect();
-
 // Function to fetch movie details from OMDB API
 async function fetchMovieDetails(titles) {
   const movieDetails = {};
   const titlesArray = Array.isArray(titles) ? titles : [titles];
 
   const fetchPromises = titlesArray.map(async (title) => {
-    const cacheKey = `movie:${title}`;
-    const cachedData = await redisClient.get(cacheKey);
-
-    if (cachedData) {
-      movieDetails[title] = JSON.parse(cachedData);
-      return;
-    }
-
     try {
       const response = await axios.get(
         `https://www.omdbapi.com/?t=${encodeURIComponent(
@@ -72,7 +51,6 @@ async function fetchMovieDetails(titles) {
           director: response.data.Director,
           description: response.data.Plot,
         };
-        await redisClient.set(cacheKey, JSON.stringify(details), "EX", 86400);
         movieDetails[title] = details;
       }
     } catch (error) {
@@ -209,18 +187,6 @@ Format as JSON:
         .status(500)
         .json({ error: "An error occurred while generating recommendations." });
     }
-  }
-});
-
-// Add this new endpoint after your existing endpoints
-app.get("/redis-test", async (req, res) => {
-  try {
-    await redisClient.set("test", "Redis is working!");
-    const value = await redisClient.get("test");
-    res.json({ message: value });
-  } catch (error) {
-    console.error("Redis test failed:", error);
-    res.status(500).json({ error: "Redis test failed" });
   }
 });
 

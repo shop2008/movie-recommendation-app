@@ -13,6 +13,7 @@
   },
   "main": "index.js",
   "dependencies": {
+    "@google-cloud/functions-framework": "^3.4.2",
     "@google/generative-ai": "^0.16.0",
     "axios": "^1.7.4",
     "cors": "^2.8.5",
