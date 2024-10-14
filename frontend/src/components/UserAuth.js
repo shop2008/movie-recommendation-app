@@ -33,7 +33,7 @@ function UserAuth({
               "primary"
             )} text-transparent bg-clip-text`}
           >
-            {user.email.split("@")[0]}
+            {user.email ? user.email.split("@")[0] : user.displayName}
           </span>
           <button onClick={handleLogout} className={logoutButtonClasses}>
             Logout
